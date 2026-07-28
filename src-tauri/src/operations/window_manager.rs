@@ -161,22 +161,48 @@ fn measure_uwp_content_top_offset(hwnd: HWND) -> Option<i32> {
     }
 }
 
+/// A profile's `window_width`/`window_height` are optional — `None` means
+/// "don't touch size, just reposition," so we fall back to whatever size the
+/// window currently is. Re-measured on every call (not cached), which is what
+/// we want: `watch_for_profile_overrides` calls this repeatedly, and a
+/// position-only profile should never fight the window over its size, only
+/// its position, however that size drifts over time.
+fn resolved_size(hwnd: HWND, profile: &Profile) -> (i32, i32) {
+    if let (Some(w), Some(h)) = (profile.window_width, profile.window_height) {
+        return (w, h);
+    }
+
+    let mut rect: RECT = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    unsafe { GetWindowRect(hwnd, &mut rect) };
+
+    (
+        profile
+            .window_width
+            .unwrap_or(rect.right - rect.left),
+        profile
+            .window_height
+            .unwrap_or(rect.bottom - rect.top),
+    )
+}
+
 /// The rect we actually move/validate the window to. Normally just the
-/// profile's raw values. When `shift_titlebar_offscreen` is set *and* we can
-/// measure a real leftover UWP title-bar strip on this exact window, the rect
-/// is shifted up and grown taller by that measured amount instead — the
-/// visible game content (which sits at a fixed offset inside the frame, below
-/// the strip) ends up landing exactly on the profile's intended rect, while
-/// the strip itself lands above the display's top edge. Falls back to the raw
-/// profile rect whenever nothing UWP-specific was measured, so this is a
-/// guaranteed no-op for every other game regardless of the checkbox.
+/// profile's position plus its resolved size (see `resolved_size`). When
+/// `shift_titlebar_offscreen` is set *and* we can measure a real leftover UWP
+/// title-bar strip on this exact window, the rect is shifted up and grown
+/// taller by that measured amount instead — the visible game content (which
+/// sits at a fixed offset inside the frame, below the strip) ends up landing
+/// exactly on the profile's intended rect, while the strip itself lands above
+/// the display's top edge. Falls back to the raw rect whenever nothing
+/// UWP-specific was measured, so this is a guaranteed no-op for every other
+/// game regardless of the checkbox.
 fn effective_target_rect(hwnd: HWND, profile: &Profile) -> (i32, i32, i32, i32) {
-    let base = (
-        profile.window_pos_x,
-        profile.window_pos_y,
-        profile.window_width,
-        profile.window_height,
-    );
+    let (width, height) = resolved_size(hwnd, profile);
+    let base = (profile.window_pos_x, profile.window_pos_y, width, height);
 
     if !profile.shift_titlebar_offscreen {
         return base;
@@ -186,8 +212,8 @@ fn effective_target_rect(hwnd: HWND, profile: &Profile) -> (i32, i32, i32, i32) 
         Some(shift) => (
             profile.window_pos_x,
             profile.window_pos_y - shift,
-            profile.window_width,
-            profile.window_height + shift,
+            width,
+            height + shift,
         ),
         None => base,
     }
@@ -289,11 +315,12 @@ fn move_and_validate_window(
     remove_window_borders(hwnd, profile);
 
     let (target_x, target_y, target_width, target_height) = effective_target_rect(hwnd, profile);
-    if profile.shift_titlebar_offscreen && (target_y, target_height) != (profile.window_pos_y, profile.window_height) {
+    let (_, base_height) = resolved_size(hwnd, profile);
+    if profile.shift_titlebar_offscreen && (target_y, target_height) != (profile.window_pos_y, base_height) {
         debug_log!(
             "PID {}: shifting titlebar off-screen — measured {}px, target rect now ({}, {}, {}, {})",
             pid,
-            target_height - profile.window_height,
+            target_height - base_height,
             target_x,
             target_y,
             target_width,
@@ -501,45 +528,71 @@ fn find_pid_by_window_title(name: &str) -> Option<DWORD> {
     result
 }
 
-extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    let (pid, profile_ptr, mut success_ptr, mut error_ptr, monitor): (
-        DWORD,
-        *const Profile,
-        NonNull<bool>,
-        NonNull<Option<WindowManagerError>>,
-        bool,
-    ) = unsafe {
-        *(lparam
-            as *const (
-                DWORD,
-                *const Profile,
-                NonNull<bool>,
-                NonNull<Option<WindowManagerError>>,
-                bool,
-            ))
-    };
+extern "system" fn find_largest_window_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let (pid, mut best_ptr): (DWORD, NonNull<Option<(HWND, i64, usize)>>) =
+        unsafe { *(lparam as *const (DWORD, NonNull<Option<(HWND, i64, usize)>>)) };
 
-    let profile = unsafe { &*profile_ptr };
-
-    if is_target_window(hwnd, pid) {
-        let result = move_and_validate_window(hwnd, profile, pid);
-        debug_window(hwnd);
-        match result {
-            Ok(()) => {
-                unsafe { *success_ptr.as_mut() = true };
-                if monitor {
-                    watch_for_profile_overrides(hwnd, profile, pid);
-                }
-            }
-            Err(error) => unsafe {
-                *success_ptr.as_mut() = false;
-                *error_ptr.as_mut() = Some(error);
-            },
-        }
-        return FALSE; // Stop enumeration because we've found and moved the window
+    if !is_target_window(hwnd, pid) {
+        return TRUE;
     }
 
-    TRUE // Continue enumeration if this window did not match
+    let mut rect: RECT = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    unsafe { GetWindowRect(hwnd, &mut rect) };
+    let area = (rect.right - rect.left) as i64 * (rect.bottom - rect.top) as i64;
+
+    let best = unsafe { best_ptr.as_mut() };
+    match best {
+        Some((_, best_area, count)) => {
+            *count += 1;
+            if area > *best_area {
+                *best = Some((hwnd, area, *count));
+            }
+        }
+        None => *best = Some((hwnd, area, 1)),
+    }
+
+    TRUE // keep enumerating — we want the largest, not just the first
+}
+
+/// A single process can own more than one visible top-level window (confirmed
+/// for SimHub via a pasted-back log: it resolved a 200x200 `WindowsForms`
+/// window instead of its real dashboard). `EnumWindows` order is essentially
+/// arbitrary (OS/Z-order dependent, not meaningful), so stopping at the first
+/// match — the old behavior — amounts to picking a random one of the
+/// process's windows. Area is a much better proxy for "the actual
+/// application window" than "whichever came first," so this scans every
+/// visible window owned by `pid` and keeps the largest by area.
+fn find_largest_window_for_pid(pid: DWORD) -> Option<HWND> {
+    let mut best: Option<(HWND, i64, usize)> = None;
+    let best_ptr = NonNull::new(&mut best).unwrap();
+    let callback_data = (pid, best_ptr);
+
+    unsafe {
+        EnumWindows(
+            Some(find_largest_window_callback),
+            &callback_data as *const _ as LPARAM,
+        );
+    }
+
+    match best {
+        Some((hwnd, area, count)) => {
+            if count > 1 {
+                debug_log!(
+                    "PID {}: {} visible windows found, using the largest ({}px^2)",
+                    pid,
+                    count,
+                    area
+                );
+            }
+            Some(hwnd)
+        }
+        None => None,
+    }
 }
 
 #[derive(Debug)]
@@ -587,7 +640,8 @@ impl ApplyConfig {
     }
 }
 
-/// Runs one EnumWindows pass looking for a visible top-level window owned by `pid`.
+/// Finds the largest visible window owned by `pid` (see
+/// `find_largest_window_for_pid`) and applies the profile to it.
 /// `Ok(())` — found it and successfully moved/resized it.
 /// `Err(Some(e))` — found a matching window but failed to apply the profile to it.
 /// `Err(None)` — no matching window for this PID at all (caller should try the next candidate, if any).
@@ -596,25 +650,21 @@ fn apply_to_pid(
     pid: DWORD,
     monitor: bool,
 ) -> Result<(), Option<WindowManagerError>> {
-    let mut success = false;
-    let success_ptr = NonNull::new(&mut success).unwrap();
+    let Some(hwnd) = find_largest_window_for_pid(pid) else {
+        return Err(None);
+    };
 
-    let mut error = None;
-    let error_ptr = NonNull::new(&mut error).unwrap();
+    let result = move_and_validate_window(hwnd, profile, pid);
+    debug_window(hwnd);
 
-    let callback_data = (pid, profile as *const _, success_ptr, error_ptr, monitor);
-
-    unsafe {
-        EnumWindows(
-            Some(enum_windows_callback),
-            &callback_data as *const _ as LPARAM,
-        );
-    }
-
-    if success {
-        Ok(())
-    } else {
-        Err(error)
+    match result {
+        Ok(()) => {
+            if monitor {
+                watch_for_profile_overrides(hwnd, profile, pid);
+            }
+            Ok(())
+        }
+        Err(error) => Err(Some(error)),
     }
 }
 

@@ -30,11 +30,11 @@ const en = {
         "window" : {
             "width": {
                 "title": "Window width",
-                "description": "Probably self-explanatory, the intended width of the window. For triple monitor setups this is 3x a single screens horizontal pixels.",
+                "description": "Probably self-explanatory, the intended width of the window. For triple monitor setups this is 3x a single screens horizontal pixels. Leave blank to only reposition the window and leave its current width alone.",
             },
             "height": {
                 "title": "Window height",
-                "description": "Probably self-explanatory, the intended height of the window. For triple monitor setups this is the height of a single screen.",
+                "description": "Probably self-explanatory, the intended height of the window. For triple monitor setups this is the height of a single screen. Leave blank to only reposition the window and leave its current height alone.",
             },
             "posY": {
                 "title": "Window position y",
@@ -72,6 +72,7 @@ const en = {
             "sharedWith": "Also used by: {{names}} — pressing this shortcut applies to whichever of these is actually running.",
         },
         "buttons": {
+            "new": "New profile",
             "test": "Apply",
             "cancel": "Cancel",
             "save": "Save",
@@ -79,6 +80,27 @@ const en = {
             "delete": "Delete",
             "deleteConfirmTitle": "Delete Profile",
             "deleteConfirmMessage": "Are you sure you want to delete \"{{name}}\"? This cannot be undone.",
+        },
+    },
+    "group": {
+        "name": {
+            "title": "Group name",
+            "description": "The name of the group, shown in the profile list.",
+        },
+        "shortcut": {
+            "title": "Shortcut Key",
+            "description": "Global hotkey to apply every profile in this group at once — only the ones whose game is actually running get moved. Must include at least one modifier (Ctrl, Alt, Shift). A profile's own shortcut (if it has one) keeps working independently of this.",
+            "sharedWith": "Also used by: {{names}}.",
+        },
+        "memberCount": "{{count}} profile(s)",
+        "removeMember": "Remove from group",
+        "buttons": {
+            "new": "New group",
+            "cancel": "Cancel",
+            "save": "Save",
+            "delete": "Delete",
+            "deleteConfirmTitle": "Delete Group",
+            "deleteConfirmMessage": "Are you sure you want to delete \"{{name}}\"? Profiles in this group will not be deleted, just ungrouped.",
         },
     },
     "home": {
@@ -119,7 +141,9 @@ const en = {
         },
         "loggingEnabled": {
             "title": "Logging",
-            "description": "Write diagnostic logs to a 'logs' folder next to the application. Useful when troubleshooting an issue — turn off when you're done.",
+            "description": "Write diagnostic logs to a per-user application data folder (not next to the .exe — Program Files isn't writable without admin rights). Use the link below to open it directly. Useful when troubleshooting an issue — turn off when you're done.",
+            "openFolder": "Open logs folder",
+            "openFolderError": "Could not open the logs folder.",
         }
     },
     "attribution": "Based on {{name}} by {{author}}",
@@ -133,6 +157,10 @@ const en = {
         "profile": {
             "not_found": "Profile not found, restart the program to sync profiles.",
             "profile_path_error": "Couldnt locate the profile path, this is bad, but shouldnt happen. Idk, just dont delete the application data folder I guess.",
+        },
+        "group": {
+            "not_found": "Group not found, restart the program to sync groups.",
+            "group_path_error": "Couldnt locate the group path, this is bad, but shouldnt happen. Idk, just dont delete the application data folder I guess.",
         },
         "settings": {
             "launch_on_start_error": "Unable to toggle launch on start",

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Info, Download } from 'react-feather';
+import { Info, Download, Folder } from 'react-feather';
+import { invoke } from '@tauri-apps/api/tauri';
 import { getSettings, updateSettings } from '../state/settingsState';
 import { useTranslation } from '../utils/i18n/useTranslation';
 import backend from '../utils/backend';
@@ -63,6 +64,18 @@ const SettingsMenu = () => {
 
     const handleLoggingToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
         updateSettings({ loggingEnabled: e.target.checked });
+    };
+
+    const handleOpenLogsFolder = async () => {
+        try {
+            // Creates the folder if it doesn't exist yet (e.g. logging has
+            // never been toggled on in this install) rather than assuming it
+            // does — resolved server-side so this always matches exactly
+            // what logging.rs itself writes to.
+            await invoke('logging_open_folder');
+        } catch {
+            addToast({ type: ToastType.ERROR, message: t('settings.loggingEnabled.openFolderError') });
+        }
     };
 
     const handleLanguageChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -189,6 +202,13 @@ const SettingsMenu = () => {
                     checked={getSettings().loggingEnabled}
                     onChange={handleLoggingToggle}
                 />
+                <button
+                    className="btn btn-outline btn-xs gap-2 mt-2 self-start"
+                    onClick={handleOpenLogsFolder}
+                >
+                    <Folder size={12} />
+                    {t('settings.loggingEnabled.openFolder')}
+                </button>
             </div>
             <div className="divider mt-2 mb-1"></div>
             <div className="form-control w-full mb-4">

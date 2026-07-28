@@ -1,12 +1,10 @@
-use std::collections::HashSet;
-
 use tauri::{
     AppHandle, Builder, CustomMenuItem, Manager, Runtime, SystemTray, SystemTrayEvent,
     SystemTrayMenu, SystemTrayMenuItem, SystemTraySubmenu,
 };
 use uuid::Uuid;
 
-use crate::operations::process;
+use crate::operations::group::Group;
 use crate::operations::profile::Profile;
 use crate::operations::user_settings;
 use crate::operations::window_manager::{self, ApplyConfig};
@@ -127,35 +125,78 @@ fn profile_submenu(profile: &Profile, strings: &TrayStrings) -> SystemTraySubmen
     SystemTraySubmenu::new(&profile.name, submenu_menu)
 }
 
-/// `running_uuids` are profiles whose process is currently running — these get
-/// a duplicate submenu pinned at the very top of the menu (same id strings as
-/// their normal entry further down, so clicking either does the same thing)
-/// so a running game's profile is easy to find without hunting through the
-/// full list. The profile's normal entry further down the menu is left
-/// completely untouched — this only ever adds a copy, never moves anything.
-pub fn build_tray_menu(profiles: &[Profile], running_uuids: &HashSet<Uuid>, strings: &TrayStrings) -> SystemTrayMenu {
-    let mut menu = SystemTrayMenu::new();
+/// A group becomes a submenu containing each of its members' own submenus
+/// (same Apply/shortcut structure as a top-level profile) — mirrors how
+/// `GroupListItem` nests its members on the home screen. If the *group*
+/// itself has a shortcut (applies to every running member at once — see
+/// `shortcuts.rs`), it's shown as a disabled item at the bottom, below every
+/// member — same placement/style as a profile's own shortcut display.
+fn group_submenu(group: &Group, members: &[&Profile], strings: &TrayStrings) -> SystemTraySubmenu {
+    let mut submenu_menu = SystemTrayMenu::new();
 
-    let running_profiles: Vec<&Profile> = profiles
-        .iter()
-        .filter(|p| running_uuids.contains(&p.uuid))
-        .collect();
-
-    if !running_profiles.is_empty() {
-        for profile in &running_profiles {
-            menu = menu.add_submenu(profile_submenu(profile, strings));
-        }
-        menu = menu.add_native_item(SystemTrayMenuItem::Separator);
+    for member in members {
+        submenu_menu = submenu_menu.add_submenu(profile_submenu(member, strings));
     }
 
-    menu = menu
+    if let Some(s) = &group.shortcut {
+        if !s.is_empty() {
+            submenu_menu = submenu_menu.add_item(
+                CustomMenuItem::new(format!("shortcut-group-{}", group.uuid), s).disabled(),
+            );
+        }
+    }
+
+    SystemTraySubmenu::new(&group.name, submenu_menu)
+}
+
+/// Mirrors the home screen's layout: groups and ungrouped profiles share one
+/// top-level list ordered by `.order` (see `HomeScreen.tsx`'s `topLevelItems`
+/// — this is the same merge, just built in Rust), a group's members are
+/// nested under it sorted the same way, and grouped profiles never appear
+/// twice (they're only reachable through their group's submenu, not also as
+/// a top-level entry).
+pub fn build_tray_menu(profiles: &[Profile], groups: &[Group], strings: &TrayStrings) -> SystemTrayMenu {
+    let mut menu = SystemTrayMenu::new()
         .add_item(CustomMenuItem::new("show", &*strings.show))
         .add_item(CustomMenuItem::new("check-updates", &*strings.check_updates))
         .add_item(CustomMenuItem::new("exit", &*strings.exit))
         .add_native_item(SystemTrayMenuItem::Separator);
 
-    for profile in profiles {
-        menu = menu.add_submenu(profile_submenu(profile, strings));
+    enum TopLevelItem<'a> {
+        Group(&'a Group),
+        Profile(&'a Profile),
+    }
+
+    let mut top_level: Vec<TopLevelItem> = groups
+        .iter()
+        .map(TopLevelItem::Group)
+        .chain(
+            profiles
+                .iter()
+                .filter(|p| p.group_uuid.is_none())
+                .map(TopLevelItem::Profile),
+        )
+        .collect();
+
+    top_level.sort_by_key(|item| match item {
+        TopLevelItem::Group(g) => g.order,
+        TopLevelItem::Profile(p) => p.order,
+    });
+
+    for item in top_level {
+        match item {
+            TopLevelItem::Profile(profile) => {
+                menu = menu.add_submenu(profile_submenu(profile, strings));
+            }
+            TopLevelItem::Group(group) => {
+                let mut members: Vec<&Profile> = profiles
+                    .iter()
+                    .filter(|p| p.group_uuid == Some(group.uuid))
+                    .collect();
+                members.sort_by_key(|p| p.order);
+                menu = menu.add_submenu(group_submenu(group, &members, strings));
+            }
+        }
     }
 
     menu
@@ -164,23 +205,18 @@ pub fn build_tray_menu(profiles: &[Profile], running_uuids: &HashSet<Uuid>, stri
 pub fn rebuild_tray_menu<R: Runtime>(app_handle: &AppHandle<R>) {
     let state = app_handle.state::<AppState>();
     let profiles = state.profiles.lock().unwrap().clone();
+    let groups = state.groups.lock().unwrap().clone();
     drop(state);
-
-    let running_uuids: HashSet<Uuid> = profiles
-        .iter()
-        .filter(|p| !process::get_pids_from_profile(p).is_empty())
-        .map(|p| p.uuid)
-        .collect();
 
     let lang = current_lang(app_handle);
     let strings = tray_strings_for_lang(&lang, app_handle);
     let _ = app_handle
         .tray_handle()
-        .set_menu(build_tray_menu(&profiles, &running_uuids, &strings));
+        .set_menu(build_tray_menu(&profiles, &groups, &strings));
 }
 
 pub fn setup_tray<R: Runtime>(builder: Builder<R>) -> Builder<R> {
-    let system_tray = SystemTray::new().with_menu(build_tray_menu(&[], &HashSet::new(), &TrayStrings::default()));
+    let system_tray = SystemTray::new().with_menu(build_tray_menu(&[], &[], &TrayStrings::default()));
 
     builder
         .system_tray(system_tray)

@@ -1,3 +1,4 @@
+use crate::debug_log;
 use crate::errors::profile::Error as ProfileError;
 use crate::errors::window_manager::Error as WindowManagerError;
 use crate::operations::window_manager::ApplyConfig;
@@ -30,7 +31,12 @@ pub fn profile_add<R: Runtime>(
     profile: Profile,
     app_handle: AppHandle<R>,
 ) -> Result<(), ProfileError> {
+    let name = profile.name.clone();
     let result = profile::add_profile(profile, &app_handle);
+    match &result {
+        Ok(()) => debug_log!("Profile created: '{}'", name),
+        Err(e) => debug_log!("Failed to create profile '{}': {}", name, e),
+    }
     tray::rebuild_tray_menu(&app_handle);
     shortcuts::rebuild_shortcuts(&app_handle);
     result
@@ -41,7 +47,12 @@ pub fn profile_update<R: Runtime>(
     profile: Profile,
     app_handle: AppHandle<R>,
 ) -> Result<(), ProfileError> {
+    let name = profile.name.clone();
     let result = profile::update_profile(profile, &app_handle);
+    match &result {
+        Ok(()) => debug_log!("Profile updated: '{}'", name),
+        Err(e) => debug_log!("Failed to update profile '{}': {}", name, e),
+    }
     tray::rebuild_tray_menu(&app_handle);
     shortcuts::rebuild_shortcuts(&app_handle);
     result
@@ -52,7 +63,12 @@ pub fn profile_delete<R: Runtime>(
     profile: Profile,
     app_handle: AppHandle<R>,
 ) -> Result<(), ProfileError> {
+    let name = profile.name.clone();
     let result = profile::delete_profile(profile, &app_handle);
+    match &result {
+        Ok(()) => debug_log!("Profile deleted: '{}'", name),
+        Err(e) => debug_log!("Failed to delete profile '{}': {}", name, e),
+    }
     tray::rebuild_tray_menu(&app_handle);
     shortcuts::rebuild_shortcuts(&app_handle);
     result
@@ -70,6 +86,10 @@ pub fn profile_import_legacy<R: Runtime>(
     app_handle: AppHandle<R>,
 ) -> Result<usize, ProfileError> {
     let result = profile::import_legacy_profiles(&app_handle);
+    match &result {
+        Ok(count) => debug_log!("Imported {} legacy profile(s)", count),
+        Err(e) => debug_log!("Failed to import legacy profiles: {}", e),
+    }
     tray::rebuild_tray_menu(&app_handle);
     shortcuts::rebuild_shortcuts(&app_handle);
     result

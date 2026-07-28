@@ -7,7 +7,7 @@ use std::thread;
 
 use crate::debug_log;
 use crate::operations::{
-    process, profile,
+    group, process, profile,
     user_settings::{self, UserSettings},
     window_state,
 };
@@ -71,12 +71,19 @@ pub fn setup(builder: Builder<tauri::Wry>) -> Builder<tauri::Wry> {
                 Vec::new()
             }),
         ));
+        let groups = Arc::new(Mutex::new(
+            group::load_groups(&app_handle).unwrap_or_else(|e| {
+                debug_log!("Error loading groups: {}", e);
+                Vec::new()
+            }),
+        ));
         // Store the initial state of the process watcher
         watcher_flag.store(user_settings.process_watcher_enabled, Ordering::SeqCst);
         poll_rate_flag.store(user_settings.poll_rate, Ordering::SeqCst);
 
         let app_state = AppState {
             profiles: profiles.clone(),
+            groups: groups.clone(),
             process_watcher_enabled: watcher_flag.clone(),
             poll_rate: poll_rate_flag.clone(),
         };

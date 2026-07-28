@@ -27,11 +27,18 @@ export const updateProfile = (updatedProfile: Partial<Profile>) => {
     });
 }
 
+// `orderedUuids` may be a *subset* of all profiles (e.g. just one group's
+// members) — only `order` on those matching profiles is touched, everyone
+// else is left exactly as-is. An earlier version replaced the whole list
+// with just `orderedUuids`, which would have silently dropped every profile
+// not included in a partial list.
 export const reorderProfiles = (orderedUuids: string[]) => {
-    const reordered = orderedUuids
-        .map(id => state.value.find(p => p.uuid === id))
-        .filter((p): p is Profile => p !== undefined);
-    setProfiles(reordered);
+    state.value = produce(state.value, draft => {
+        orderedUuids.forEach((id, index) => {
+            const p = draft.find(p => p.uuid === id);
+            if (p) p.order = index;
+        });
+    });
     backend.profile.reorder(orderedUuids).catch(console.error);
 }
 

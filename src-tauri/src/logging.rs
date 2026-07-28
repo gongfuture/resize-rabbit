@@ -22,6 +22,17 @@ fn logs_dir<R: Runtime>(app_handle: &AppHandle<R>) -> Option<PathBuf> {
     Some(path::app_data_dir(&app_handle.config())?.join("logs"))
 }
 
+/// Resolves the logs folder and makes sure it actually exists on disk, creating
+/// it if necessary — used by the Settings "Open logs folder" button, which
+/// previously assumed `set_enabled(true)` had already created it and errored
+/// with "path does not exist" for anyone opening it before ever toggling
+/// logging on in this install.
+pub fn ensure_logs_dir<R: Runtime>(app_handle: &AppHandle<R>) -> Option<PathBuf> {
+    let dir = logs_dir(app_handle)?;
+    fs::create_dir_all(&dir).ok()?;
+    Some(dir)
+}
+
 fn rotate_existing_log(dir: &Path) {
     let current = dir.join("resize-rabbit.log");
     if !current.exists() {

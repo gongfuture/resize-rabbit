@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod operations {
+    pub mod group;
     pub mod process;
     pub mod profile;
     pub mod user_settings;

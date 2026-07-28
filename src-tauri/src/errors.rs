@@ -85,6 +85,13 @@ pub mod profile {
     });
 }
 
+pub mod group {
+    define_error_domain!("group", {
+        NotFound("not_found", "Group not found"),
+        GroupPathError("group_path_error", "Could not find the group path."),
+    });
+}
+
 pub mod settings {
     define_error_domain!("settings", {
         LaunchOnStartError("launch_on_start_error", "Could not set launch on start."),

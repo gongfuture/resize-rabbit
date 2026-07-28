@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/tauri';
 import caseConvert from './caseConvert';
 import { Profile } from '../types/ProfileTypes';
+import { Group } from '../types/GroupTypes';
 import Process from '../types/ProcessType';
 import Settings from '../types/SettingsType';
 import { ToastType } from '../components/toast/toast.types';
@@ -82,6 +83,33 @@ const profile = {
         invoke('profile_legacy_available'),
 };
 
+const group = {
+    all: async () => {
+        const groups: any = await invokeWithToast('group_get');
+        return groups.map(caseConvert.toCamel) as Group[];
+    },
+    update: async (group: Group) =>
+        invokeWithToast('group_update', {
+            group: caseConvert.toSnake(group),
+        }),
+    add: async (group: Group) =>
+        invokeWithToast('group_add', {
+            group: caseConvert.toSnake(group),
+        }),
+    delete: async (group: Group) =>
+        invokeWithToast('group_delete', {
+            group: caseConvert.toSnake(group),
+        }),
+};
+
+const home = {
+    // `uuids` is the complete top-level order — every group + every
+    // ungrouped profile uuid, interleaved. Grouped profiles aren't part of
+    // this list; reorder those within their group via `profile.reorder`.
+    reorder: async (uuids: string[]) =>
+        invokeWithToast('home_reorder', { uuids }),
+};
+
 const process = {
     running: async (showAll = false) => {
         const processes: any = await invokeWithToast('process_get', { showAll });
@@ -114,6 +142,8 @@ const shortcuts = {
 
 const backend = {
     profile,
+    group,
+    home,
     process,
     settings,
     locale,

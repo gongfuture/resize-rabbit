@@ -12,7 +12,6 @@ import FormControl from '../components/profile-editor/FormControl';
 import ShortcutCapture from '../components/profile-editor/ShortcutCapture';
 import { useTranslation } from '../utils/i18n/useTranslation';
 import ProcessSelector from '../components/profile-editor/ProcessSelector';
-import ProfileEditorHeader from '../components/profile-editor/ProfileEditorHeader';
 import ProfileEditorFooter from '../components/profile-editor/ProfileEditorFooter';
 
 interface Props {
@@ -24,17 +23,22 @@ const ProfileEditor = ({ profile }: Props) => {
     const [name, setName] = useState<string>(profile?.name || '');
     const [selectedProcess, setSelectedProcess] = useState<Process>();
     const [processName] = useState<string>(profile?.processName || '');
+    // `String(undefined)` is the literal string "undefined" (truthy!), not ''
+    // — using `?.` + `??` instead of `|| ''` on the outside avoids that trap
+    // for a brand-new profile (no `profile` prop, every field genuinely
+    // unset). windowWidth/windowHeight in particular are allowed to stay ''
+    // (position-only profile, size left as-is) — see getUpdatedProfile.
     const [windowWidth, setWindowWidth] = useState<string>(
-        String(profile?.windowWidth) || ''
+        profile?.windowWidth != null ? String(profile.windowWidth) : ''
     );
     const [windowHeight, setWindowHeight] = useState<string>(
-        String(profile?.windowHeight) || ''
+        profile?.windowHeight != null ? String(profile.windowHeight) : ''
     );
     const [windowPosX, setWindowPosX] = useState<string>(
-        String(profile?.windowPosX) || ''
+        profile?.windowPosX != null ? String(profile.windowPosX) : ''
     );
     const [windowPosY, setWindowPosY] = useState<string>(
-        String(profile?.windowPosY) || ''
+        profile?.windowPosY != null ? String(profile.windowPosY) : ''
     );
     const [autoResize, setAutoResize] = useState<boolean>(
         profile?.auto || false
@@ -44,7 +48,9 @@ const ProfileEditor = ({ profile }: Props) => {
     );
     const [shiftTitlebarOffscreen, setShiftTitlebarOffscreen] =
         useState<boolean>(profile?.shiftTitlebarOffscreen || false);
-    const [delay, setDelay] = useState<string>(String(profile?.delay) || '');
+    const [delay, setDelay] = useState<string>(
+        profile?.delay != null ? String(profile.delay) : ''
+    );
     const [shortcut, setShortcut] = useState<string>(profile?.shortcut || '');
     const [hasBeenSaved, setHasBeenSaved] = useState<boolean>(!!profile);
     const uuid = useMemo(() => {
@@ -59,15 +65,29 @@ const ProfileEditor = ({ profile }: Props) => {
         uuid,
         name,
         processName: processName || selectedProcess?.name || '',
-        windowWidth: Number(windowWidth),
-        windowHeight: Number(windowHeight),
-        windowPosX: Number(windowPosX),
-        windowPosY: Number(windowPosY),
+        // Width/height are optional — leaving either blank means "don't
+        // resize, only reposition" (the backend keeps the window's current
+        // size for whichever of the two is left unset). `undefined` here
+        // must survive as `undefined`, not `NaN`/`Number('')`, since Tauri's
+        // JSON encoding drops `undefined` keys entirely, which is what makes
+        // the Rust side's `Option<i32>` see a missing field rather than the
+        // `null` it previously choked on.
+        windowWidth: windowWidth === '' ? undefined : Number(windowWidth),
+        windowHeight: windowHeight === '' ? undefined : Number(windowHeight),
+        windowPosX: Number(windowPosX) || 0,
+        windowPosY: Number(windowPosY) || 0,
         delay: Number(delay) || 0,
         auto: autoResize,
         removeBorders,
         shiftTitlebarOffscreen,
         shortcut: shortcut || undefined,
+        // Not edited on this screen (group membership/position are set via
+        // drag-and-drop on the home screen) — must still be passed through
+        // unchanged, or saving here would silently reset them: the backend
+        // treats a missing field as "reset to default" the same way it does
+        // for every other field.
+        groupUuid: profile?.groupUuid,
+        order: profile?.order ?? 0,
     });
 
     const handleCancel = () => {
@@ -85,13 +105,11 @@ const ProfileEditor = ({ profile }: Props) => {
         backend.profile.test(testProfile).finally(stopLoading);
     };
 
+    // Width/height are optional (position-only profiles are allowed), so
+    // Test only needs a process to target.
     const testEnabled = useMemo(() => {
-        return !!(
-            windowWidth !== '' &&
-            windowHeight !== '' &&
-            (processName || selectedProcess)
-        );
-    }, [selectedProcess, processName, windowWidth, windowHeight]);
+        return !!(processName || selectedProcess);
+    }, [selectedProcess, processName]);
 
     const sharedShortcutProfiles = useMemo(() => {
         if (!shortcut) return [];
@@ -101,13 +119,8 @@ const ProfileEditor = ({ profile }: Props) => {
     }, [shortcut, uuid]);
 
     const canSave = useMemo(() => {
-        return !!(
-            name &&
-            (processName || selectedProcess) &&
-            windowWidth &&
-            windowHeight
-        );
-    }, [selectedProcess, processName, windowWidth, windowHeight, name]);
+        return !!(name && (processName || selectedProcess));
+    }, [selectedProcess, processName, name]);
 
     const persistProfile = async () => {
         const updatedProfile = getUpdatedProfile();
@@ -155,8 +168,7 @@ const ProfileEditor = ({ profile }: Props) => {
 
     return (
         <div className="flex flex-col h-screen bg-gradient-to-t from-[#660e99] to-[#941882]">
-            <ProfileEditorHeader />
-            <div className="flex-grow w-full h-[100vh] grid grid-rows-[1fr_auto] pr-8 pl-8">
+            <div className="flex-grow w-full h-[100vh] grid grid-rows-[1fr_auto] pr-8 pl-8 pt-8">
                 {/* A single shared grid (not two independent stacked columns)
                     so rows actually line up across left/right regardless of
                     content height differences — e.g. Process spans 2 rows

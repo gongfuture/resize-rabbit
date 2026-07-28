@@ -1,5 +1,6 @@
 import './utils/i18n/i18n';
 import ProfileEditor from "./screens/ProfileEditor";
+import GroupEditor from "./screens/GroupEditor";
 import HomeScreen from "./screens/HomeScreen";
 import ToastProvider from "./components/toast/ToastSystem";
 import {Screen} from "./types/ScreenTypes";
@@ -9,6 +10,7 @@ import { getScreen, getScreenParams } from "./state/screenState";
 const routes: Record<Screen, (props: any) => JSX.Element> = {
     [Screen.HOME]: HomeScreen,
     [Screen.PROFILE_EDITOR]: ProfileEditor,
+    [Screen.GROUP_EDITOR]: GroupEditor,
 }
 
 function App() {
