@@ -1,11 +1,11 @@
 {
-  "version": "1.3.2",
-  "notes": "Profiles can now share the same global shortcut, applied to whichever one's game is actually running. Fixed function-key shortcuts (e.g. Ctrl+Shift+F7) not being capturable. System tray now pins a currently-running game's profile to the top of the menu. Profile editor: delete confirmation, 'Test | Apply' renamed to 'Apply', 'Remove titlebar' no longer experimental, Save split into 'Save' and 'Save & Close', and layout fixes.",
-  "pub_date": "2026-07-23T02:16:12Z",
+  "version": "1.5.0",
+  "notes": "New: Profile Groups — organize profiles into collapsible groups, drag to reorder, drag a profile into a group, and give a group its own hotkey that applies to every running member at once (tray menu mirrors this layout too). Fixed window targeting for apps with multiple windows (e.g. SimHub) by picking the largest window instead of an arbitrary one. Removed the duplicate 'running processes' section from the top of the tray menu. Also: shared hotkeys now apply to all matching running profiles, not just the first; fixed a crash testing/saving a profile with blank fields; window width/height are now optional; delete a profile from the home screen with confirmation; logging folder/'Open logs folder' fixes.",
+  "pub_date": "2026-07-28T23:05:13Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRaTA2bWpwbWlqM052WDhVV0VDKzdnMll2eWJ3RGFmWmJhd3dzQmZQRXJPRURlTTBoMS93a0xmblMxNXRkRFpLU21Oc2cranpsdjRrOWFZejBMZFA5MFgxeXF6QVNyNFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NzcyOTcyCWZpbGU6UmVzaXplIFJhYmJpdF8xLjMuMl94NjRfZW4tVVMubXNpLnppcApGMllPVXB5N0EyOFJRZG94dTVDcUN3NlJLcmkrUWQvb0NudnIrcjM0TEhJQmFtUFJINkxCVUlDdXVQdm5nZDE4TkJOUU1PN3FwSTNtVWM1N0FjQW1EUT09Cg==",
-      "url": "https://github.com/rosscarlson/resize-rabbit/releases/download/v1.3.2/Resize.Rabbit_1.3.2_x64_en-US.msi.zip"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRaTA2bWpwbWlqM09DMlhPaFVTMnY4RkIwMk9KbXJ4Smk4NVhPbkJXVWRaYzl5S1dEcHd2blFrY3pxa2traktWZjNIU0JXM1J5T2V1eWY2d1E2SmNxZmpZMFhXMWFudHdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg1Mjc5ODYwCWZpbGU6UmVzaXplIFJhYmJpdF8xLjUuMF94NjRfZW4tVVMubXNpLnppcApZOUJVbzNkRnRVK1lBaThkSC9Bc3d2ejROTkVrT1dYZ3QvOUllNmZvVTgrd0NqeDdWdDFzQU16SlRJSzRTMWZpZjZlOFlOUVhhcjFQc3RGL1dOQUZDUT09Cg==",
+      "url": "https://github.com/rosscarlson/resize-rabbit/releases/download/v1.5.0/Resize.Rabbit_1.5.0_x64_en-US.msi.zip"
     }
   }
 }
